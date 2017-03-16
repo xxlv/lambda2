@@ -1,5 +1,4 @@
 #!/usr/local/bin/python
-
 # 接受 函数
 # 执行函数
 # 执行回调
@@ -9,10 +8,11 @@
 import lambda2
 import socket
 import json
+import time
 from multiprocessing import Process
 
 
-address = ('127.0.0.1', 31502)
+address = ('127.0.0.1', 31503)
 s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 s.bind(address)
 node=lambda2.Node()
@@ -59,3 +59,4 @@ while True:
     node.publish(event_id,compute(data_o))
 
     print("Publish {}".format(event_id))
+    time.sleep(2)

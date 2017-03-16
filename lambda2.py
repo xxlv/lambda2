@@ -26,10 +26,10 @@ class LambdaServerAdapter():
 # Http适配器 可以是tcp适配器？ 多进程适配器等
 class ScoketAdapter(LambdaServerAdapter):
     def send(self,server,func_id,func_body):
-        address = ('127.0.0.1', 31502)
+        address = ('127.0.0.1', 31503)
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect(address)
-        event_id=self._make_event_id(server,func_id)
+        event_id=Lambda2Hash.make_event_hash(server,func_id)
         data={
             "event_id":event_id,
             "func_id":func_id,
@@ -39,9 +39,19 @@ class ScoketAdapter(LambdaServerAdapter):
         s.send(str.encode(json.dumps(data)))
         return event_id
 
-    def _make_event_id(self,server,name):
-        return "LAMBDA2-%s" % str(hashlib.md5((server+name).encode("utf-8")).hexdigest())
+    # def _make_event_id(self,server,name):
+    #     return "LAMBDA2-%s" % str(hashlib.md5((server+name).encode("utf-8")).hexdigest())
 
+class Lambda2Hash():
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def make_event_hash(server,name):
+        server=str(server)
+        name=str(name)
+
+        return "LAMBDA2-%s" % str(hashlib.md5((server+name).encode("utf-8")).hexdigest())
 
 # API
 class ContentLessApi():
@@ -59,9 +69,12 @@ class ResultPool():
     def __init__(self):
         self.result_pool={}
 
-    # pull result from server
-    def pull(self,func):
-        return self.result_pool.get(func,None)
+    # # pull result from server
+    # def pull(self,func):
+    #     return self.result_pool.get(func,None)
+
+    def update(self,func_id,result):
+        self.result_pool['func_id']=result
 
 
 # 函数
@@ -72,48 +85,43 @@ class FunctionPool():
     def push(self,func_id,func_body):
         self.function_pool[func_id]=func_body
 
-    def pull(self,func_id):
-        pass
+    def load(self,func_id):
+        return self.function_pool[func_id]
+
+
 
 # Lambda2 Main
 class Lambad2():
 
     def __init__(self):
         # 计算节点集群
+        self.init()
+
+    def init(self):
+        # 计算适配器
+        self.lambad_adapter_api=ContentLessApi(ScoketAdapter())
+
         self.node_pool=[]
         # 过程
         self.lambda_functions_pool=FunctionPool()
+        self.lambda_functions_handle=FunctionPool()
         # 结果
-        self.lambda_result_pool=ResultPool()
-
+        self.result_pool=ResultPool()
         # 函数节点map
         self.function_node={}
-        # 计算适配器
-        self.lambad_adapter_api=ContentLessApi(ScoketAdapter())
+
         # 函数事件map
         self.function_sub_map={}
         self.driver=Redis
-
-
-    def init(self):
-        pass
+        self.subscribe=None
 
     def run(self):
-        print("Start compute")
+
         for func_id,func_body in self.lambda_functions_pool.function_pool.items():
-            # 当计算完毕后，怎么通知到这里？？？
-            self.function_sub_map[func_id]=self.lambad_adapter_api.send_to(self.node_pool[self._hash(func_id)],func_id,func_body)
+            self.lambad_adapter_api.send_to(self.node_pool[self._hash(func_id)],func_id,func_body)
 
 
-    def sub(self,*events):
-        sub_events=[]
-        for event in events:
-            sub_events.append(self.function_sub_map.get(event))
-
-        sub=self.driver.pubsub()
-        sub.subscribe(sub_events)
-        return sub
-
+        self._compute()
 
     def add_node(self,node):
         self.node_pool.append(node)
@@ -124,11 +132,64 @@ class Lambad2():
     def remove_node(self,node):
         pass
 
-    # def lambda_functions_pool(self):
-    #     return self.function_pool
+    # 申明此次聚合计算的依赖
+    def depend(self,*event):
+        self._update_function_hash_sub_event_map(*event)
+        return self._sub(*event)
 
-    # def lambda_result_pool(self):
-    #     return self.redult_pool
+    # 计算结果聚合处理
+    def _compute(self):
+        self._update_result_pool()
+        self._handle()
+
+    # 聚合处理
+    def _handle(self):
+        handle_pools=self.lambda_functions_handle.function_pool
+        for func_id,func_body in handle_pools.items():
+            # TODO  (a="1",b="2") 
+            data=self._exec_local_function(func_id,"".join(func_body[0]),params)
+
+
+    # 本机运行函数,此次运算时简单的聚合，原子操作，本地计算即可，当然也可以配置一个server计算
+    def _exec_local_function(self,func_id,func_body_str,*params):
+        print(func_body_str)
+
+        exec(func_body_str)
+        data=eval("{}()".format(func_id))
+        return data
+
+    # 更新计算结果池
+    def _update_result_pool(self):
+        event_map_size=len(self.function_sub_map)
+        if self.subscribe is None:
+            print("subscribe not found")
+            return
+        for m in self.subscribe.listen():
+            if m['type']=="message":
+                self.result_pool.update(m['channel'],m['data'].decode('utf-8'))
+                print("+")
+                event_map_size=event_map_size-1
+                if event_map_size==0:
+                    break;
+
+
+    # 更新函数的订阅事件map
+    def _update_function_hash_sub_event_map(self,*events):
+        for func_id in events:
+            self.function_sub_map[func_id]=Lambda2Hash.make_event_hash(self.node_pool[self._hash(func_id)],func_id)
+
+    # 订阅事件
+    def _sub(self,*events):
+
+        sub_events=[]
+        for event in events:
+            sub_events.append(self.function_sub_map.get(event))
+        sub=self.driver.pubsub()
+        sub.subscribe(sub_events)
+        self.subscribe=sub
+        return self.subscribe
+
+    # 函数映射到计算节点
     def _hash(self,key):
         # 给定一个函数的identity,输出一个server id
         node_len=len(self.node_pool)
