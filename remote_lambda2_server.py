@@ -9,42 +9,47 @@ import lambda2
 import socket
 import json
 import time
-from multiprocessing import Process
+import random
 
-
-address = ('127.0.0.1', 31503)
-s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+port = random.randrange(30000, 40000)
+address = ('127.0.0.1', port)
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.bind(address)
-node=lambda2.Node()
-node.accept()
+subscriber = lambda2.Subscriber()
+
 s.listen(5)
 
 
 def compute(data_o):
-    event_id=data_o['event_id']
-    func_body=data_o['func_body']
-    func_id=data_o['func_id']
+    event_id = data_o['event_id']
+    func_body = data_o['func_body']
+    func_id = data_o['func_id']
     # TODO
     # Check expression
     # Check cache
-    func_body_str="".join(func_body[0])
+    func_body_str = "".join(func_body[0])
     exec(func_body_str)
-    data=eval("{}()".format(func_id))
+    data = eval("{}()".format(func_id))
+
     return data
 
 
-
 while True:
+    # 发布服务事件
+    print("当前绑定端口   " + str(port) + "  正在监听...")
 
-    print("waiting")
-    ss,addr=s.accept()
+    lambda2.Discover.mount({"ip": "127.0.0.1", "port": port})
+    # subscriber.publish("asdada", "asdasd")
+    #
+    ss, addr = s.accept()
     # TODO 按照协议 一直读取直到协议终止
-    data=ss.recvmsg(10086)[0].decode('utf-8')
-    data_o=json.loads(data)
+    data = ss.recvmsg(10086)[0].decode('utf-8')
+    data_o = json.loads(data)
 
+    event_id = data_o['event_id']
 
-    event_id=data_o['event_id']
-
+    # 检查even 是否合法
+    # print(event_id)
     # func_body=data_o['func_body']
     # func_id=data_o['func_id']
     # # TODO
@@ -58,7 +63,9 @@ while True:
     # p.join()
     # compute(data_o)
 
-    node.publish(event_id,compute(data_o))
+    data = compute(data_o)
 
+    print("计算完毕，正在发布 " + event_id)
+    subscriber.publish(event_id, data)
     print("Publish {}".format(event_id))
     time.sleep(2)

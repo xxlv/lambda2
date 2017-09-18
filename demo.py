@@ -6,16 +6,21 @@ import lambda2
 
 def a():
     t = 0
-    for i in range(100):
-        print("a compute {}".format(str(i)))
+    for i in range(1000):
         t += i
     return t
 
 
 def b():
     t = 0
-    for i in range(100):
-        print("b compute {}".format(str(i)))
+    for i in range(1000):
+        t += i
+    return t
+
+
+def c():
+    t = 0
+    for i in range(1000):
         t += i
     return t
 
@@ -42,21 +47,25 @@ def lamdba2_sum(r):
 
 lambda2 = lambda2.Lambad2()
 lambda2.init()
-lambda2.add_nodes(["a"])
+lambda2.add_nodes([{"ip": "127.0.0.1", "port": "37207"}])
+lambda2.add_nodes([{"ip": "127.0.0.1", "port": "37165"}])
+lambda2.add_nodes([{"ip": "127.0.0.1", "port": "38716"}])
+#
+
 # # hash map to server
 # TODO 增加语言适配器
 
 # 将可计算单元推送到函数池中
 lambda2.lambda_functions_pool.push("a", inspect.getsourcelines(a))
-
 lambda2.lambda_functions_pool.push("b", inspect.getsourcelines(b))
+lambda2.lambda_functions_pool.push("c", inspect.getsourcelines(c))
 
 # 增加聚合处理
 lambda2.lambda_functions_handle.push("lamdba2_sum", inspect.getsourcelines(lamdba2_sum))
 
 # 声明此次计算的依赖
 # TODO 自动发现依赖即可
-lambda2.depend_on("a", "b")
+lambda2.depend_on("a", "b", "c")
 
 # 执行计算
 r = lambda2.run()
