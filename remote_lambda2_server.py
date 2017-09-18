@@ -41,6 +41,8 @@ while True:
     # TODO 按照协议 一直读取直到协议终止
     data=ss.recvmsg(10086)[0].decode('utf-8')
     data_o=json.loads(data)
+
+
     event_id=data_o['event_id']
 
     # func_body=data_o['func_body']
@@ -51,10 +53,10 @@ while True:
     # func_body_str="".join(func_body[0])
     # exec(func_body_str)
     # data=eval("{}()".format(func_id))
-    p = Process(target=compute, args=(data_o,))
-    p.start()
-    p.join()
-
+    # p = Process(target=compute, args=(data_o,))
+    # p.start()
+    # p.join()
+    # compute(data_o)
 
     node.publish(event_id,compute(data_o))
 
