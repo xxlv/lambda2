@@ -10,6 +10,33 @@ from lambda2 import discover
 from lambda2 import lambda2_hash
 
 import inspect
+import logging
+import os
+import sys
+try:
+    import colorlog
+except ImportError:
+    pass
+
+def setup_logging():
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+    format      = '%(asctime)s - %(levelname)-8s - %(message)s'
+    date_format = '%Y-%m-%d %H:%M:%S'
+    if 'colorlog' in sys.modules and os.isatty(2):
+        cformat = '%(log_color)s' + format
+        f = colorlog.ColoredFormatter(cformat, date_format,
+              log_colors = { 'DEBUG'   : 'reset',       'INFO' : 'reset',
+                             'WARNING' : 'bold_yellow', 'ERROR': 'bold_red',
+                             'CRITICAL': 'bold_red' })
+    else:
+        f = logging.Formatter(format, date_format)
+    ch = logging.StreamHandler()
+    ch.setFormatter(f)
+    root.addHandler(ch)
+
+setup_logging()
+log = logging.getLogger(__name__)
 
 
 # Lambda2 Main
@@ -41,18 +68,30 @@ class Lambad2():
         self.subscribe = None
 
     def run(self):
+
+        logging.debug("正在执行Run")
         for func_id, func_body in self.lambda_functions_pool.function_pool.items():
-            self.lambad_adapter_api.send_to(self.get_node(func_id), func_id, func_body)
+            node = self.get_node(func_id)
+
+            logging.debug("正在将计算资源{} 发送到节点 {}:{}".format(func_id,node['ip'],node['port']))
+            self.lambad_adapter_api.send_to(node, func_id, func_body)
 
         return self._compute()
 
     def get_node(self, key):
+
         ring = hash_ring.HashRing(self.node_pool)
         node = ring.get_node(key)
+
+        logging.debug("正在为 key {} 分配节点 {}".format(key,node))
+
         # 检查node 是否可用
         if not self.check_node(node):
             if node in self.node_pool:
                 self.node_pool.remove(node)
+                logging.warning("正在将节点{} 从节点池中移除".format(node))
+            else:
+                logging.warning("当前节点{} 不存在".format(node))
 
         return node
 

@@ -1,4 +1,5 @@
 #!/usr/local/bin/python
+# -* coding: utf-8 -*-
 
 import inspect
 
@@ -37,25 +38,25 @@ def lamdba2_sum(r):
         print("计算节点出错，无法获取正确的数据")
         return 0
 
+l = lambad2.Lambad2()
+l.init()
 
-lambda2 = lambad2.Lambad2()
-lambda2.init()
-lambda2.add_nodes([{"ip": "127.0.0.1", "port": "37207"}])
-lambda2.add_nodes([{"ip": "127.0.0.1", "port": "37165"}])
-lambda2.add_nodes([{"ip": "127.0.0.1", "port": "38716"}])
+l.add_nodes([{"ip": "127.0.0.1", "port": "36707"}])
+# l.add_nodes([{"ip": "127.0.0.1", "port": "31859"}])
 
-lambda2.lambda_functions_pool.push("a", lambda2.make_src(a))
-lambda2.lambda_functions_pool.push("b", lambda2.make_src(b))
-lambda2.lambda_functions_pool.push("c", lambda2.make_src(c))
+l.lambda_functions_pool.push("a", l.make_src(a))
+l.lambda_functions_pool.push("b", l.make_src(b))
+l.lambda_functions_pool.push("c", l.make_src(c))
 
 # 增加聚合处理
-lambda2.lambda_functions_handle.push("lamdba2_sum", lambda2.make_src(lamdba2_sum))
+l.lambda_functions_handle.push("lamdba2_sum", l.make_src(lamdba2_sum))
+
 
 # 声明此次计算的依赖
 # TODO 自动发现依赖即可
-lambda2.depend_on("a", "b", "c")
+l.depend_on("a", "b", "c")
 
 # 执行计算
-r = lambda2.run()
+r = l.run()
 
 print(r)

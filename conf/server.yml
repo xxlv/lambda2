@@ -1,5 +1,5 @@
 driver: Redis
-host: 127.0.0.1
+host: 192.168.200.179
 password: helloworld
 port: 6379
 db: 0
